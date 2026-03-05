@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Sistema de Reserva de Cine</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;700&family=Sora:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-theme="dark">
+  <!-- Fondo RGB animado para dar profundidad visual al diseño -->
+  <div class="rgb-bg" aria-hidden="true">
+    <span class="orb orb-one"></span>
+    <span class="orb orb-two"></span>
+    <span class="orb orb-three"></span>
+  </div>
+
+  <div class="page-shell">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">CINE RESERVAS</p>
+        <h1>Reserva tu función en segundos</h1>
+      </div>
+      <button id="themeToggle" class="ghost-btn" type="button" aria-label="Cambiar modo claro y oscuro">
+        Modo claro
+      </button>
+    </header>
+
+    <main class="layout">
+      <section class="panel">
+        <div class="panel-header">
+          <h2>1) Películas disponibles</h2>
+          <p>Elige una función, revisa precio en Quetzales y Dólares y selecciona tus asientos.</p>
+        </div>
+
+        <!-- Contenedor donde JS dibuja dinámicamente las tarjetas de películas -->
+        <div id="movieGrid" class="movie-grid"></div>
+
+        <div class="panel-header">
+          <h2>2) Selección de asientos</h2>
+          <p>Los asientos en gris ya están ocupados y no pueden reservarse.</p>
+        </div>
+
+        <div class="screen-wrap">
+          <div class="screen">PANTALLA</div>
+        </div>
+
+        <div class="legend">
+          <span><i class="dot available"></i> Disponible</span>
+          <span><i class="dot selected"></i> Seleccionado</span>
+          <span><i class="dot occupied"></i> Ocupado</span>
+        </div>
+
+        <!-- Aquí JS arma la matriz de asientos por filas -->
+        <div id="seatMap" class="seat-map"></div>
+      </section>
+
+      <aside class="panel side-panel">
+        <div class="panel-header compact">
+          <h2>3) Resumen de compra</h2>
+        </div>
+
+        <!-- Resumen de la película activa para dar feedback inmediato al usuario -->
+        <article id="selectedMovieCard" class="selected-movie-card">
+          <img id="selectedPoster" src="" alt="Poster de película seleccionada">
+          <div class="selected-info">
+            <h3 id="selectedTitle">Selecciona una película</h3>
+            <p id="selectedSchedule">Horario: --:--</p>
+            <p id="selectedPrice">Precio: Q0.00 / $0.00</p>
+          </div>
+        </article>
+
+        <div class="summary-list">
+          <p><strong>Asientos:</strong> <span id="seatList">Ninguno</span></p>
+          <p><strong>Boletos:</strong> <span id="ticketCount">0</span></p>
+          <p><strong>Total (GTQ):</strong> <span id="totalGtq">Q0.00</span></p>
+          <p><strong>Total (USD):</strong> <span id="totalUsd">$0.00</span></p>
+          <p class="rate-note">Tipo de cambio fijo: <span id="exchangeRateText">Q7.80 = $1.00</span></p>
+        </div>
+
+        <div class="actions">
+          <button id="startPaymentBtn" class="primary-btn" type="button" disabled>Pagar y reservar</button>
+          <button id="clearSelectionBtn" class="ghost-btn" type="button">Limpiar selección</button>
+        </div>
+
+        <section class="payment-box">
+          <h3>4) Mini pasarela de pagos</h3>
+          <!-- Formulario simple de pago para simular una compra real -->
+          <form id="paymentForm" novalidate>
+            <label for="paymentMethod">Método de pago</label>
+            <select id="paymentMethod" required>
+              <option value="credito">Tarjeta de crédito</option>
+              <option value="debito">Tarjeta de débito</option>
+              <option value="paypal">PayPal</option>
+            </select>
+
+            <label for="customerName">Nombre completo</label>
+            <input id="customerName" type="text" placeholder="Nombre del titular" required>
+
+            <label for="customerEmail">Correo</label>
+            <input id="customerEmail" type="email" placeholder="correo@dominio.com" required>
+
+            <div id="cardFields" class="card-fields">
+              <label for="cardNumber">Número de tarjeta</label>
+              <input id="cardNumber" type="text" inputmode="numeric" maxlength="19" placeholder="0000 0000 0000 0000" required>
+
+              <div class="inline-fields">
+                <div>
+                  <label for="cardExpiry">Expira (MM/AA)</label>
+                  <input id="cardExpiry" type="text" maxlength="5" placeholder="09/30" required>
+                </div>
+                <div>
+                  <label for="cardCvv">CVV</label>
+                  <input id="cardCvv" type="password" inputmode="numeric" maxlength="4" placeholder="123" required>
+                </div>
+              </div>
+            </div>
+
+            <button class="primary-btn wide" type="submit">Confirmar pago</button>
+          </form>
+        </section>
+
+        <p id="systemMessage" class="system-message" aria-live="polite">
+          Selecciona película y asientos para iniciar tu reserva.
+        </p>
+      </aside>
+    </main>
+
+    <section class="panel history-panel">
+      <div class="panel-header compact">
+        <h2>5) Reservas realizadas</h2>
+        <p>Puedes descargar el boleto en PDF o cancelar una reserva activa.</p>
+      </div>
+      <!-- Lista renderizada por JS con botones para PDF y cancelación -->
+      <div id="reservationList" class="reservation-list"></div>
+    </section>
+  </div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" referrerpolicy="no-referrer"></script>
+  <script src="script.js"></script>
+</body>
+</html>
