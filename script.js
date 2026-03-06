@@ -404,6 +404,10 @@ function renderReservations() {
     .slice()
     .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
     .map((reservation) => {
+      const movie = getMovieById(reservation.movieId);
+      const poster = movie?.poster ?? "";
+      const createdAt = formatReservationDate(reservation.createdAt);
+      const seatSummary = summarizeSeatList(reservation.seats, 10);
       const statusClass = reservation.status === "Activa" ? "active" : "canceled";
       const actionButtons = reservation.status === "Activa"
         ? `
@@ -417,16 +421,36 @@ function renderReservations() {
       return `
         <article class="reservation-item">
           <div class="reservation-head">
-            <span class="reservation-id">${reservation.id}</span>
+            <div class="reservation-head-meta">
+              <p class="reservation-kicker">Recibo digital</p>
+              <span class="reservation-id">${reservation.id}</span>
+            </div>
             <span class="badge ${statusClass}">${reservation.status}</span>
           </div>
-          <div>
-            <strong>${reservation.movieTitle}</strong>
-            <p>Horario: ${reservation.schedule} | Asientos: ${reservation.seats.join(", ")}</p>
-            <p>Total: ${formatGtq.format(reservation.totalGtq)} / ${formatUsd.format(reservation.totalUsd)}</p>
-            <p>Pago: ${reservation.paymentMethod} | Cliente: ${reservation.customerName}</p>
+          <div class="reservation-body">
+            <img class="reservation-poster" src="${poster}" alt="Poster de ${reservation.movieTitle}">
+            <div class="reservation-content">
+              <strong class="reservation-title">${reservation.movieTitle}</strong>
+              <div class="reservation-meta-grid">
+                <p><span>Funcion</span><strong>${reservation.schedule}</strong></p>
+                <p><span>Asientos</span><strong>${seatSummary}</strong></p>
+                <p><span>Boletos</span><strong>${reservation.tickets}</strong></p>
+                <p><span>Metodo</span><strong>${reservation.paymentMethod}</strong></p>
+                <p><span>Cliente</span><strong>${reservation.customerName}</strong></p>
+                <p><span>Fecha</span><strong>${createdAt}</strong></p>
+              </div>
+            </div>
+            <div class="reservation-total">
+              <span>Total</span>
+              <strong>${formatGtq.format(reservation.totalGtq)}</strong>
+              <small>${formatUsd.format(reservation.totalUsd)}</small>
+            </div>
           </div>
-          <div class="reservation-actions">${actionButtons}</div>
+          <div class="reservation-cutline" aria-hidden="true"></div>
+          <div class="reservation-footer">
+            <p class="reservation-customer-mail">Correo: ${reservation.customerEmail}</p>
+            <div class="reservation-actions">${actionButtons}</div>
+          </div>
         </article>
       `;
     })
@@ -625,31 +649,121 @@ function downloadReservationPdf(reservation) {
 
   const { jsPDF } = jspdfApi;
   const doc = new jsPDF();
-  const when = new Date(reservation.createdAt).toLocaleString("es-GT");
+  const when = formatReservationDate(reservation.createdAt);
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  const margin = 14;
+  const cardWidth = pageWidth - margin * 2;
+  const cardHeight = pageHeight - margin * 2;
+  const seats = Array.isArray(reservation.seats) && reservation.seats.length
+    ? reservation.seats
+    : ["Sin asiento"];
+  const tickets = seats.length;
+  const totalPerTicketGtq = tickets ? reservation.totalGtq / tickets : reservation.totalGtq;
+  const totalPerTicketUsd = tickets ? reservation.totalUsd / tickets : reservation.totalUsd;
 
-  // Estructura de boleto en PDF con datos clave de la compra.
-  doc.setFont("helvetica", "bold");
-  doc.setFontSize(18);
-  doc.text("Boleto de Cine", 14, 20);
+  const drawTicketPage = (seat, index) => {
+    doc.setFillColor(8, 11, 18);
+    doc.rect(0, 0, pageWidth, pageHeight, "F");
 
-  doc.setFont("helvetica", "normal");
-  doc.setFontSize(12);
-  doc.text(`Reserva: ${reservation.id}`, 14, 34);
-  doc.text(`Estado: ${reservation.status}`, 14, 42);
-  doc.text(`Pelicula: ${reservation.movieTitle}`, 14, 50);
-  doc.text(`Horario: ${reservation.schedule}`, 14, 58);
-  doc.text(`Asientos: ${reservation.seats.join(", ")}`, 14, 66);
-  doc.text(`Boletos: ${reservation.tickets}`, 14, 74);
-  doc.text(`Total GTQ: ${formatGtq.format(reservation.totalGtq)}`, 14, 82);
-  doc.text(`Total USD: ${formatUsd.format(reservation.totalUsd)}`, 14, 90);
-  doc.text(`Metodo de pago: ${reservation.paymentMethod}`, 14, 98);
-  doc.text(`Cliente: ${reservation.customerName}`, 14, 106);
-  doc.text(`Correo: ${reservation.customerEmail}`, 14, 114);
-  doc.text(`Fecha: ${when}`, 14, 122);
+    doc.setFillColor(18, 24, 37);
+    doc.roundedRect(margin, margin, cardWidth, cardHeight, 4, 4, "F");
+    doc.setDrawColor(213, 176, 112);
+    doc.setLineWidth(0.8);
+    doc.roundedRect(margin, margin, cardWidth, cardHeight, 4, 4, "S");
 
-  doc.setFontSize(10);
-  doc.text("Presenta este boleto en taquilla digital antes de ingresar a la sala.", 14, 138);
-  doc.save(`${reservation.id}.pdf`);
+    doc.setFillColor(123, 28, 44);
+    doc.roundedRect(margin + 2, margin + 2, cardWidth - 4, 24, 3, 3, "F");
+    doc.setDrawColor(234, 202, 140);
+    doc.setLineWidth(0.35);
+    doc.line(margin + 4, margin + 21, margin + cardWidth - 4, margin + 21);
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(248, 231, 195);
+    doc.setFontSize(9);
+    doc.text("CINE RESERVAS", margin + 8, margin + 8);
+    doc.setFontSize(18);
+    doc.text("BOLETO INDIVIDUAL", margin + 8, margin + 17);
+
+    const statusX = margin + cardWidth - 42;
+    if (reservation.status === "Activa") {
+      doc.setFillColor(40, 145, 108);
+      doc.setTextColor(237, 255, 247);
+    } else {
+      doc.setFillColor(162, 57, 57);
+      doc.setTextColor(255, 235, 235);
+    }
+    doc.roundedRect(statusX, margin + 8, 30, 8, 2.5, 2.5, "F");
+    doc.setFontSize(9);
+    doc.text(reservation.status.toUpperCase(), statusX + 15, margin + 13.2, { align: "center" });
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(42, 48, 64);
+    doc.setFontSize(54);
+    doc.text("CINE", pageWidth / 2, pageHeight / 2 + 6, { align: "center" });
+
+    const detailLeft = margin + 8;
+    const detailValueX = margin + 46;
+    const detailMaxWidth = cardWidth - 54;
+    let cursorY = margin + 37;
+
+    const drawDetailRow = (label, value) => {
+      doc.setFont("helvetica", "bold");
+      doc.setTextColor(173, 184, 205);
+      doc.setFontSize(10);
+      doc.text(`${label}:`, detailLeft, cursorY);
+
+      doc.setFont("helvetica", "normal");
+      doc.setTextColor(241, 246, 255);
+      const lines = doc.splitTextToSize(String(value), detailMaxWidth);
+      doc.text(lines, detailValueX, cursorY);
+      cursorY += Math.max(7, lines.length * 5.1);
+    };
+
+    drawDetailRow("Reserva", reservation.id);
+    drawDetailRow("Pelicula", reservation.movieTitle);
+    drawDetailRow("Funcion", reservation.schedule);
+    drawDetailRow("Asiento", seat);
+    drawDetailRow("Boleto", `${index + 1} de ${tickets}`);
+    drawDetailRow("Metodo", reservation.paymentMethod);
+    drawDetailRow("Cliente", reservation.customerName);
+    drawDetailRow("Correo", reservation.customerEmail);
+    drawDetailRow("Fecha", when);
+
+    const totalBoxY = Math.min(cursorY + 6, pageHeight - 56);
+    doc.setFillColor(12, 18, 29);
+    doc.roundedRect(margin + 8, totalBoxY, cardWidth - 16, 26, 3, 3, "F");
+    doc.setDrawColor(213, 176, 112);
+    doc.setLineWidth(0.35);
+    doc.roundedRect(margin + 8, totalBoxY, cardWidth - 16, 26, 3, 3, "S");
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(170, 181, 202);
+    doc.setFontSize(8);
+    doc.text("TOTAL POR BOLETO", margin + 12, totalBoxY + 7);
+
+    doc.setTextColor(247, 232, 198);
+    doc.setFontSize(18);
+    doc.text(formatGtq.format(totalPerTicketGtq), margin + 12, totalBoxY + 18);
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(183, 195, 220);
+    doc.setFontSize(12);
+    doc.text(formatUsd.format(totalPerTicketUsd), margin + cardWidth - 12, totalBoxY + 18, { align: "right" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(161, 171, 192);
+    doc.setFontSize(9);
+    const footerNote = "Presenta este boleto digital en taquilla antes de ingresar a la sala.";
+    doc.text(doc.splitTextToSize(footerNote, cardWidth - 16), margin + 8, pageHeight - margin - 8);
+  };
+
+  seats.forEach((seat, index) => {
+    if (index > 0) doc.addPage();
+    drawTicketPage(seat, index);
+  });
+
+  doc.save(`${reservation.id}-boletos.pdf`);
 }
 
 function toggleCardFieldsByMethod() {
@@ -717,6 +831,24 @@ function getSelectedMovie() {
   return movies.find((movie) => movie.id === state.selectedMovieId) ?? null;
 }
 
+function getMovieById(movieId) {
+  return movies.find((movie) => movie.id === movieId) ?? null;
+}
+
+function formatReservationDate(dateValue) {
+  const parsedDate = new Date(dateValue);
+  if (Number.isNaN(parsedDate.getTime())) return "Fecha no disponible";
+  return parsedDate.toLocaleString("es-GT");
+}
+
+function summarizeSeatList(seats, visibleCount = 10) {
+  if (!Array.isArray(seats) || !seats.length) return "Ninguno";
+  if (seats.length <= visibleCount) return seats.join(", ");
+  const visibleSeats = seats.slice(0, visibleCount).join(", ");
+  const hiddenCount = seats.length - visibleCount;
+  return `${visibleSeats} +${hiddenCount} mas`;
+}
+
 function getAvailableSeatCodes(movieId = state.selectedMovieId) {
   if (!movieId) return [];
 
@@ -780,3 +912,4 @@ function loadTheme() {
   if (stored === "dark" || stored === "light") return stored;
   return "dark";
 }
+
