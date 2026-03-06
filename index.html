@@ -53,6 +53,18 @@
           <span><i class="dot occupied"></i> Ocupado</span>
         </div>
 
+        <div class="ticket-stepper" aria-label="Control de boletos">
+          <span class="ticket-stepper-label">Boletos</span>
+          <div class="ticket-stepper-controls">
+            <button id="decreaseTicketBtn" class="ghost-btn" type="button" aria-label="Disminuir boletos">-</button>
+            <span id="ticketStepperValue">0</span>
+            <button id="increaseTicketBtn" class="ghost-btn" type="button" aria-label="Aumentar boletos">+</button>
+          </div>
+          <span class="ticket-stepper-limit">
+            Disponibles: <strong id="availableTicketCount">0</strong>
+          </span>
+        </div>
+
         <!-- Aquí JS arma la matriz de asientos por filas -->
         <div id="seatMap" class="seat-map"></div>
       </section>
@@ -97,7 +109,7 @@
             </select>
 
             <label for="customerName">Nombre completo</label>
-            <input id="customerName" type="text" placeholder="Nombre del titular" required>
+            <input id="customerName" type="text" placeholder="Nombre del titular" pattern="[^0-9]*" title="El nombre no debe contener numeros" required>
 
             <label for="customerEmail">Correo</label>
             <input id="customerEmail" type="email" placeholder="correo@dominio.com" required>

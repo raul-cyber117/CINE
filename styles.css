@@ -282,6 +282,46 @@ h3 {
   background: var(--seat-occupied);
 }
 
+.ticket-stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.65rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  padding: 0.45rem 0.55rem;
+  margin-bottom: 0.55rem;
+  background: var(--surface-strong);
+}
+
+.ticket-stepper-label {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ticket-stepper-controls {
+  display: inline-grid;
+  grid-template-columns: 30px minmax(28px, auto) 30px;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ticket-stepper-controls .ghost-btn {
+  padding: 0.25rem 0.35rem;
+  line-height: 1;
+}
+
+#ticketStepperValue {
+  text-align: center;
+  font-weight: 600;
+}
+
+.ticket-stepper-limit {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+
 .seat-map {
   display: grid;
   gap: 0.3rem;
@@ -305,9 +345,19 @@ h3 {
   border-radius: 6px;
   aspect-ratio: 1 / 1;
   background: var(--seat-available);
-  color: transparent;
+  display: grid;
+  place-items: center;
+  padding: 1px;
+  color: color-mix(in srgb, var(--text), transparent 30%);
+  font-size: clamp(0.44rem, 1vw, 0.62rem);
+  font-weight: 600;
+  line-height: 1;
   cursor: pointer;
   transition: transform var(--transition), border-color var(--transition), background var(--transition);
+}
+
+.seat-code {
+  pointer-events: none;
 }
 
 .seat:hover:not(.occupied) {
@@ -319,9 +369,17 @@ h3 {
   border-color: color-mix(in srgb, #ffffff, transparent 75%);
 }
 
+.seat.selected .seat-code {
+  color: #061118;
+}
+
 .seat.occupied {
   background: var(--seat-occupied);
   cursor: not-allowed;
+}
+
+.seat.occupied .seat-code {
+  color: color-mix(in srgb, #ffffff, transparent 35%);
 }
 
 .side-panel {
@@ -576,6 +634,14 @@ h3 {
 
   .actions {
     flex-direction: column;
+  }
+
+  .ticket-stepper {
+    flex-wrap: wrap;
+  }
+
+  .ticket-stepper-limit {
+    width: 100%;
   }
 
   .seat-row {

@@ -229,6 +229,10 @@ const state = {
 const ui = {
   movieGrid: document.getElementById("movieGrid"),
   seatMap: document.getElementById("seatMap"),
+  decreaseTicketBtn: document.getElementById("decreaseTicketBtn"),
+  increaseTicketBtn: document.getElementById("increaseTicketBtn"),
+  ticketStepperValue: document.getElementById("ticketStepperValue"),
+  availableTicketCount: document.getElementById("availableTicketCount"),
   selectedPoster: document.getElementById("selectedPoster"),
   selectedTitle: document.getElementById("selectedTitle"),
   selectedSchedule: document.getElementById("selectedSchedule"),
@@ -269,12 +273,15 @@ function bootstrap() {
 function bindEvents() {
   ui.movieGrid.addEventListener("click", onMovieGridClick);
   ui.seatMap.addEventListener("click", onSeatClick);
+  ui.decreaseTicketBtn.addEventListener("click", () => changeTicketQuantity(-1));
+  ui.increaseTicketBtn.addEventListener("click", () => changeTicketQuantity(1));
   ui.startPaymentBtn.addEventListener("click", () => ui.customerName.focus());
   ui.clearSelectionBtn.addEventListener("click", clearCurrentSelection);
   ui.paymentForm.addEventListener("submit", onSubmitPayment);
   ui.paymentMethod.addEventListener("change", toggleCardFieldsByMethod);
   ui.cardNumber.addEventListener("input", formatCardNumber);
   ui.cardExpiry.addEventListener("input", formatExpiry);
+  ui.customerName.addEventListener("input", sanitizeCustomerNameInput);
   ui.reservationList.addEventListener("click", onReservationAction);
   ui.themeToggle.addEventListener("click", toggleTheme);
 }
@@ -329,7 +336,9 @@ function renderSeatMap() {
           title="Asiento ${code}"
           aria-label="Asiento ${code}"
           ${isOccupied ? "disabled" : ""}
-        ></button>
+        >
+          <span class="seat-code">${code}</span>
+        </button>
       `);
     }
 
@@ -347,6 +356,7 @@ function renderSeatMap() {
 function renderSummary() {
   const movie = getSelectedMovie();
   const seatCount = state.selectedSeats.length;
+  const availableCount = getAvailableSeatCodes().length;
 
   if (!movie) {
     ui.selectedPoster.src = "";
@@ -355,6 +365,10 @@ function renderSummary() {
     ui.selectedPrice.textContent = "Precio: Q0.00 / $0.00";
     ui.seatList.textContent = "Ninguno";
     ui.ticketCount.textContent = "0";
+    ui.ticketStepperValue.textContent = "0";
+    ui.availableTicketCount.textContent = "0";
+    ui.decreaseTicketBtn.disabled = true;
+    ui.increaseTicketBtn.disabled = true;
     ui.totalGtq.textContent = "Q0.00";
     ui.totalUsd.textContent = "$0.00";
     ui.startPaymentBtn.disabled = true;
@@ -371,6 +385,10 @@ function renderSummary() {
   ui.selectedPrice.textContent = `Precio: ${formatGtq.format(movie.priceGtq)} / ${formatUsd.format(movie.priceGtq / EXCHANGE_RATE)}`;
   ui.seatList.textContent = seatCount ? state.selectedSeats.join(", ") : "Ninguno";
   ui.ticketCount.textContent = String(seatCount);
+  ui.ticketStepperValue.textContent = String(seatCount);
+  ui.availableTicketCount.textContent = String(Math.max(availableCount - seatCount, 0));
+  ui.decreaseTicketBtn.disabled = seatCount === 0;
+  ui.increaseTicketBtn.disabled = seatCount >= availableCount;
   ui.totalGtq.textContent = formatGtq.format(totalGtq);
   ui.totalUsd.textContent = formatUsd.format(totalUsd);
   ui.startPaymentBtn.disabled = seatCount === 0;
@@ -435,7 +453,9 @@ function onMovieGridClick(event) {
 function onSeatClick(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) return;
-  const seatCode = target.getAttribute("data-seat");
+  const seatButton = target.closest("[data-seat]");
+  if (!(seatButton instanceof HTMLElement)) return;
+  const seatCode = seatButton.getAttribute("data-seat");
   if (!seatCode) return;
 
   const occupied = state.occupiedByMovie[state.selectedMovieId] ?? new Set();
@@ -458,6 +478,37 @@ function clearCurrentSelection() {
   setMessage("Selección de asientos limpiada.", "success");
 }
 
+function changeTicketQuantity(delta) {
+  if (!state.selectedMovieId || delta === 0) return;
+
+  const availableSeats = getAvailableSeatCodes();
+  const maxTickets = availableSeats.length;
+  const currentTickets = state.selectedSeats.length;
+  const targetTickets = Math.max(0, Math.min(maxTickets, currentTickets + delta));
+
+  if (targetTickets === currentTickets) {
+    if (delta > 0 && currentTickets >= maxTickets) {
+      setMessage("Ya llegaste al limite de boletos disponibles.", "error");
+    }
+    return;
+  }
+
+  if (delta > 0) {
+    const selectedSet = new Set(state.selectedSeats);
+    for (const seat of availableSeats) {
+      if (selectedSet.has(seat)) continue;
+      selectedSet.add(seat);
+      if (selectedSet.size === targetTickets) break;
+    }
+    state.selectedSeats = sortSeats(Array.from(selectedSet));
+  } else {
+    state.selectedSeats = sortSeats(state.selectedSeats).slice(0, targetTickets);
+  }
+
+  renderSeatMap();
+  renderSummary();
+}
+
 function onSubmitPayment(event) {
   event.preventDefault();
   const movie = getSelectedMovie();
@@ -467,6 +518,7 @@ function onSubmitPayment(event) {
     return;
   }
 
+  sanitizeCustomerNameInput();
   const validationError = validatePaymentForm();
   if (validationError) {
     setMessage(validationError, "error");
@@ -511,6 +563,7 @@ function validatePaymentForm() {
   const method = ui.paymentMethod.value;
 
   if (name.length < 4) return "Ingresa un nombre válido (mínimo 4 caracteres).";
+  if (/\d/.test(name)) return "El nombre no puede contener numeros.";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return "Ingresa un correo válido.";
 
   if (method !== "paypal") {
@@ -621,6 +674,10 @@ function formatExpiry() {
   ui.cardExpiry.value = `${raw.slice(0, 2)}/${raw.slice(2)}`;
 }
 
+function sanitizeCustomerNameInput() {
+  ui.customerName.value = ui.customerName.value.replace(/\d/g, "");
+}
+
 function paymentMethodLabel(value) {
   switch (value) {
     case "credito":
@@ -658,6 +715,24 @@ function markSeatsAsOccupied(movieId, seats) {
 
 function getSelectedMovie() {
   return movies.find((movie) => movie.id === state.selectedMovieId) ?? null;
+}
+
+function getAvailableSeatCodes(movieId = state.selectedMovieId) {
+  if (!movieId) return [];
+
+  const occupied = state.occupiedByMovie[movieId] ?? new Set();
+  const availableSeats = [];
+
+  for (const row of ROWS) {
+    for (let col = 1; col <= COLUMNS; col += 1) {
+      const code = `${row}${col}`;
+      if (!occupied.has(code)) {
+        availableSeats.push(code);
+      }
+    }
+  }
+
+  return availableSeats;
 }
 
 function sortSeats(seats) {
